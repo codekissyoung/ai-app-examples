@@ -1,10 +1,27 @@
 import readline from 'readline';
 
-// 取得调用模型 API 的必要参数
+/**
+ * 消息类型定义
+ *
+ * @property role - 消息角色：
+ *   - 'system': 系统提示词（设定 AI 行为）
+ *   - 'user': 用户输入
+ *   - 'assistant': AI 回复
+ * @property content - 消息内容（文本）
+ *
+ * 注：role 使用联合类型 + 字面量类型，限制只能是这 3 个值
+ */
+type Message = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+};
+
+// API 配置（从环境变量读取密钥）
 const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://api.moonshot.cn/v1';
 const MODEL = 'kimi-k2-0905-preview';
 
+// 对话历史：初始化时只包含 system 消息（设定 AI 角色）
 const messages: Message[] = [
   {
     role: 'system',
@@ -37,57 +54,83 @@ const messages: Message[] = [
   },
 ];
 
+// 主循环：不断读取用户输入 → 调用 API → 显示回复
 while (true) {
+  // 等待用户输入（await 让出控制权，不阻塞事件循环）
   const input = await readInput();
+
+  // 将用户输入添加到对话历史
   messages.push({ role: 'user', content: input });
 
-  // 调用模型 API 传入历史所有消息
+  // 调用 API 获取模型回复（传入完整对话历史）
   const reply = await invoke(messages);
 
-  // 保存本次模型回复
+  // 将模型回复添加到对话历史（下次调用时 API 能看到）
   messages.push({ role: 'assistant', content: reply });
 
+  // 打印模型回复
   console.log('Assistant:', reply + '\n');
 }
 
 /**
- * 读取用户输入
+ * 读取用户输入（异步）
+ *
+ * 执行流程：
+ * 1. 创建 readline 接口，连接标准输入/输出
+ * 2. 调用 rl.question() 注册回调（老式 API）
+ * 3. 立即返回 Promise<string>（pending 状态）
+ * 4. 用户按回车 → readline 触发回调
+ * 5. 回调内调用 resolve(message) → Promise fulfilled
+ * 6. await 恢复执行，得到 message 值
+ *
+ * @returns Promise<string> - 用户输入的字符串
  */
 async function readInput() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+  // 创建 readline 接口：从键盘读取，向终端输出
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
+  // 返回 Promise，将回调风格的 API 转换成 Promise 风格
   return new Promise<string>((resolve) => {
+    // rl.question() 是回调风格：当用户输入时调用回调函数
     rl.question('User: ', (message) => {
-      resolve(message);
-      rl.close();
+      resolve(message);  // 将 message "放入" Promise（fulfilled 状态）
+      rl.close();        // 关闭 readline 接口，释放资源
     });
   });
 }
 
 /**
- * 调用模型 API 获取回复
+ * 调用 LLM API 获取回复（异步）
+ *
+ * 执行流程：
+ * 1. 发起 HTTP POST 请求（返回 Promise<Response>）
+ * 2. await 等待网络响应（HTTP headers 到达）→ res
+ * 3. 调用 res.json() 解析响应体（返回 Promise<any>）
+ * 4. await 等待 JSON 解析完成 → data
+ * 5. 提取并返回模型回复内容
+ *
+ * @param messages - 对话历史（包含 system、user、assistant 消息）
+ * @returns Promise<string> - 模型生成的回复内容
  */
 async function invoke(messages: Message[]) {
+  // 第一个 await：等待 HTTP 响应（headers）
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',      // 告诉服务器：请求体是 JSON
+      Authorization: `Bearer ${API_KEY}`,      // 认证：Bearer Token
     },
     body: JSON.stringify({
-      model: MODEL,
-      messages,
+      model: MODEL,     // 模型名称
+      messages,         // 对象简写：等价于 messages: messages
     }),
   });
 
+  // 第二个 await：等待 JSON 解析（body）
+  // res.json() 异步解析响应体，返回 Promise<any>
   const data = await res.json();
+
+  // 类型断言：告诉 TS 这是 string（data 类型是 any）
+  // 返回模型生成的文本内容
   return data.choices[0].message.content as string;
 }
-
-type Message = {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-};
