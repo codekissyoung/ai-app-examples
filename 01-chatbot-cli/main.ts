@@ -2,12 +2,8 @@ import readline from 'readline';
 
 // 取得调用模型 API 的必要参数
 const API_KEY = process.env.API_KEY;
-const BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const MODEL = 'qwen-turbo';
-
-if (!API_KEY) {
-  throw new Error('请在 .env 中设置 API_KEY');
-}
+const BASE_URL = 'https://api.moonshot.cn/v1';
+const MODEL = 'kimi-k2-0905-preview';
 
 const messages: Message[] = [
   {
@@ -42,16 +38,15 @@ const messages: Message[] = [
 ];
 
 while (true) {
-  // 读取用户输入
   const input = await readInput();
   messages.push({ role: 'user', content: input });
 
   // 调用模型 API 传入历史所有消息
   const reply = await invoke(messages);
+
   // 保存本次模型回复
   messages.push({ role: 'assistant', content: reply });
 
-  // 打印模型回复
   console.log('Assistant:', reply + '\n');
 }
 
@@ -92,9 +87,6 @@ async function invoke(messages: Message[]) {
   return data.choices[0].message.content as string;
 }
 
-/**
- * 消息格式
- */
 type Message = {
   role: 'user' | 'assistant' | 'system';
   content: string;
