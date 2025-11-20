@@ -130,6 +130,12 @@ async function invoke(messages: Message[]) {
   // res.json() 异步解析响应体，返回 Promise<any>
   const data = await res.json();
 
+  // 错误处理：检查 API 是否返回了错误
+  if (!data.choices) {
+    console.error('API Error:', JSON.stringify(data, null, 2));
+    throw new Error(`API 请求失败: ${data.error?.message || '未知错误'}`);
+  }
+
   // 类型断言：告诉 TS 这是 string（data 类型是 any）
   // 返回模型生成的文本内容
   return data.choices[0].message.content as string;
