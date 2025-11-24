@@ -1,15 +1,33 @@
 import readline from 'readline';
 import fs from 'fs';
+import OpenAI from 'openai';
+import { ChatOpenAI } from '@langchain/openai';
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 
-// API 配置（从环境变量读取密钥）
-const API_KEY = process.env.API_KEY;
-const BASE_URL = 'https://api.moonshot.cn/v1';
-const MODEL = 'kimi-k2-turbo-preview';
+// API 配置（从环境变量读取，必填项检查）
+const API_KEY = process.env.API_KEY || "not set";
+const BASE_URL = process.env.BASE_URL || "not set";
+const MODEL = process.env.MODEL || "not set";
+
+// 必填参数检查
+if (!API_KEY || !BASE_URL || !MODEL) {
+  console.error('缺少必要的环境变量配置：');
+  if (!API_KEY) console.error('  - API_KEY: API 密钥');
+  if (!BASE_URL) console.error('  - BASE_URL: API 基础 URL');
+  if (!MODEL) console.error('  - MODEL: 模型名称');
+  console.error('\n请在 .env 文件中配置以上参数');
+  process.exit(1);
+}
 
 // 返回模式控制：从环境变量读取，默认为普通模式
 // 'stream' = 流式返回（打字机效果），其他值 = 一次性返回
 const RETURN_MODE = process.env.RETURN_MODE || 'normal';
 
+// SDK 选择：从环境变量读取，默认为原生实现
+// 'native'    = 原生 fetch 实现（L1: 最底层，理解 HTTP/SSE 原理）
+// 'openai'    = OpenAI SDK（L2: 中间层，生产级封装）
+// 'langchain' = LangChain 框架（L3: 最高层，AI 应用框架）
+const USE_SDK = process.env.USE_SDK || 'native';
 // 从文件读取系统提示词
 const systemPrompt = fs.readFileSync('system-prompt.md', 'utf-8');
 
@@ -18,13 +36,41 @@ type Message = {
   content: string;
 };
 
-// 对话历史：初始化时只包含 system 消息（设定 AI 角色）
+// ========== 原生实现 (native) 消息历史 ==========
 const messages: Message[] = [
   {
     role: 'system',
     content: systemPrompt,
   },
 ];
+
+// ========== OpenAI SDK (openai) 实例和消息历史 ==========
+let openaiClient: OpenAI | null = null;
+const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+  { role: 'system', content: systemPrompt },
+];
+
+if (USE_SDK === 'openai') {
+  openaiClient = new OpenAI({
+    apiKey: API_KEY,
+    baseURL: BASE_URL,
+  });
+}
+
+// ========== LangChain (langchain) 实例和消息历史 ==========
+let langchainModel: ChatOpenAI | null = null;
+const langchainMessages: BaseMessage[] = [new SystemMessage(systemPrompt)];
+
+if (USE_SDK === 'langchain') {
+  langchainModel = new ChatOpenAI({
+    model: MODEL,
+    configuration: {
+      baseURL: BASE_URL,
+      apiKey: API_KEY,
+    },
+    streaming: RETURN_MODE === 'stream', // 根据 RETURN_MODE 动态设置
+  });
+}
 
 // 主函数：包装 top-level await 避免警告
 async function main() {
@@ -35,31 +81,158 @@ async function main() {
       continue; // 直接输入回车的话，直接跳过
     }
 
-    // 将用户输入添加到对话历史
-    messages.push({ role: 'user', content: input });
-
-    if (RETURN_MODE === 'stream') {
-      // ===== 流式返回模式 =====
-      // 逐字打印，类似打字机效果，用户体验更好
-      const chunks = streamInvoke(messages);
-      let reply = '';
-      process.stdout.write('Assistant: '); // 不换行打印前缀
-
-      // for await...of 遍历异步迭代器，每次获取一个 chunk
-      for await (const chunk of chunks) {
-        process.stdout.write(chunk); // 实时打印每个文本片段
-        reply += chunk; // 累积完整回复
-      }
-
-      process.stdout.write('\n\n'); // 打印完成后换行
-      messages.push({ role: 'assistant', content: reply });
-    } else {
-      // ===== 普通返回模式 =====
-      // 等待完整响应后一次性打印
-      const reply = await invoke(messages);
-      console.log('Assistant:', reply + '\n');
-      messages.push({ role: 'assistant', content: reply });
+    // 根据 SDK 选择执行不同的逻辑
+    switch (USE_SDK) {
+      case 'native':
+        // ========== L1: 原生 fetch 实现 ==========
+        await handleNativeMode(input);
+        break;
+      case 'openai':
+        // ========== L2: OpenAI SDK ==========
+        await handleOpenAIMode(input);
+        break;
+      case 'langchain':
+        // ========== L3: LangChain 框架 ==========
+        await handleLangChainMode(input);
+        break;
+      default:
+        console.error(`未知的 SDK 类型: ${USE_SDK}，请使用 native/openai/langchain`);
+        process.exit(1);
     }
+  }
+}
+
+/**
+ * OpenAI SDK 模式处理函数（L2 层）
+ * 使用 OpenAI SDK 封装的 API 调用
+ *
+ * 特点：
+ * - 生产级封装：自动重试、错误处理、超时控制
+ * - 类型安全：完整的 TypeScript 类型定义
+ * - 简洁易用：比原生实现减少 90% 代码量
+ * - 官方推荐：Kimi、通义千问等都推荐使用
+ */
+async function handleOpenAIMode(input: string) {
+  if (!openaiClient) {
+    throw new Error('OpenAI SDK 未初始化');
+  }
+  // 将用户输入添加到消息历史
+  openaiMessages.push({ role: 'user', content: input });
+  let reply = '';
+  if (RETURN_MODE === 'stream') {
+    // ===== OpenAI SDK 流式返回 =====
+    // 调用 SDK 的 stream 方法，返回异步迭代器
+    const stream = await openaiClient.chat.completions.create({
+      model: MODEL,
+      messages: openaiMessages,
+      stream: true, // 开启流式返回
+    });
+
+    process.stdout.write('Assistant: ');
+
+    // for await...of 遍历流式响应
+    for await (const chunk of stream) {
+      // SDK 自动解析 SSE 格式，直接取 content
+      const content = chunk.choices[0]?.delta?.content || '';
+      process.stdout.write(content);
+      reply += content;
+    }
+
+    process.stdout.write('\n\n');
+  } else {
+    // ===== OpenAI SDK 普通返回 =====
+    // 一次性获取完整响应
+    const response = await openaiClient.chat.completions.create({
+      model: MODEL,
+      messages: openaiMessages,
+      stream: false, // 关闭流式返回
+    });
+
+    reply = response.choices[0]?.message?.content || '';
+    console.log('Assistant:', reply + '\n');
+  }
+
+  // 保存 AI 回复到历史
+  openaiMessages.push({ role: 'assistant', content: reply });
+}
+
+/**
+ * LangChain 模式处理函数（L3 层）
+ * 使用 LangChain 框架封装的 API 调用
+ *
+ * 特点：
+ * - 最高层抽象：统一接口支持多种模型
+ * - 工具生态：内置 Agents、Tools、Chains
+ * - 复杂应用：适合构建 RAG、Agent 等复杂 AI 应用
+ */
+async function handleLangChainMode(input: string) {
+  if (!langchainModel) {
+    throw new Error('LangChain 模型未初始化');
+  }
+
+  // 将用户输入添加到 LangChain 消息历史
+  langchainMessages.push(new HumanMessage(input));
+
+  let reply = '';
+
+  if (RETURN_MODE === 'stream') {
+    // LangChain 流式返回
+    const chunks = await langchainModel.stream(langchainMessages);
+    process.stdout.write('Assistant: ');
+
+    for await (const chunk of chunks) {
+      const content = chunk.content.toString();
+      process.stdout.write(content);
+      reply += content;
+    }
+
+    process.stdout.write('\n\n');
+  } else {
+    // LangChain 普通返回
+    const response = await langchainModel.invoke(langchainMessages);
+    reply = response.content.toString();
+    console.log('Assistant:', reply + '\n');
+  }
+
+  // 保存 AI 回复到历史
+  langchainMessages.push(new AIMessage(reply));
+}
+
+/**
+ * 原生实现模式处理函数（L1 层）
+ * 使用手动实现的 fetch + SSE 解析
+ *
+ * 特点：
+ * - 最底层实现：直接操作 HTTP、SSE、ReadableStream
+ * - 完全可控：每一行代码都清晰可见
+ * - 学习价值高：理解 API 调用的完整流程
+ * - 教学目的：适合学习底层原理
+ */
+async function handleNativeMode(input: string) {
+  // 将用户输入添加到对话历史
+  messages.push({ role: 'user', content: input });
+
+  if (RETURN_MODE === 'stream') {
+    // ===== 流式返回模式 =====
+    // 逐字打印，类似打字机效果，用户体验更好
+    const chunks = streamInvoke(messages);
+    let reply = '';
+    process.stdout.write('Assistant: '); // 不换行打印前缀
+
+    // for await...of 遍历异步迭代器，每次获取一个 chunk
+    for await (const chunk of chunks) {
+      process.stdout.write(chunk); // 实时打印每个文本片段
+      reply += chunk; // 累积完整回复
+    }
+
+    process.stdout.write('\n\n'); // 打印完成后换行
+    messages.push({ role: 'assistant', content: reply });
+  } else {
+    // ===== 普通返回模式 =====
+    // 等待完整响应后一次性打印
+    const reply = await invoke(messages);
+    console.log('Assistant:', reply + '\n');
+    messages.push({ role: 'assistant', content: reply });
   }
 }
 

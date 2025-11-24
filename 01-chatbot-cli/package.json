@@ -6,5 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file .env main.ts"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.75",
+    "@langchain/openai": "^0.6.11",
+    "openai": "^6.9.1"
   }
 }
