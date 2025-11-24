@@ -26,7 +26,6 @@ const messages: Message[] = [
 async function main() {
   // 主循环：不断读取用户输入 → 调用 API → 显示回复
   while (true) {
-    // 等待用户输入（await 让出控制权，不阻塞事件循环）
     const input = await readInput();
     if (!input.trim()) {
       continue; // 直接输入回车的话，直接跳过
@@ -37,12 +36,9 @@ async function main() {
 
     // 调用 API 获取模型回复（传入完整对话历史）
     const reply = await invoke(messages);
-
-    // 将模型回复添加到对话历史（下次调用时 API 能看到）
-    messages.push({ role: 'assistant', content: reply });
-
-    // 打印模型回复
     console.log('Assistant:', reply + '\n');
+
+    messages.push({ role: 'assistant', content: reply });
   }
 }
 
@@ -54,7 +50,6 @@ main().catch((err) => {
 
 /**
  * 读取用户输入（异步）
- *
  * 执行流程：
  * 1. 创建 readline 接口，连接标准输入/输出
  * 2. 调用 rl.question() 注册回调（老式 API）
@@ -62,13 +57,11 @@ main().catch((err) => {
  * 4. 用户按回车 → readline 触发回调
  * 5. 回调内调用 resolve(message) → Promise fulfilled
  * 6. await 恢复执行，得到 message 值
- *
  * @returns Promise<string> - 用户输入的字符串
  */
 async function readInput() {
   // 创建 readline 接口：从键盘读取，向终端输出
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
   // 返回 Promise，将回调风格的 API 转换成 Promise 风格
   return new Promise<string>((resolve) => {
     // rl.question() 是回调风格：当用户输入时调用回调函数
