@@ -247,8 +247,6 @@ USE_SDK=openai npm start      # L2 SDK
 USE_SDK=langchain npm start   # L3 框架
 ```
 
----
-
 ## 🎯 推荐配置（2025年）
 
 **学习开发**：
@@ -266,15 +264,3 @@ BASE_URL=https://api.moonshot.cn/v1
 MODEL=moonshot-v1-32k
 # 理由：稳定可靠，长文本支持好
 ```
-
-**代码助手**：
-```bash
-API_KEY=your-deepseek-key
-BASE_URL=https://api.deepseek.com/v1
-MODEL=deepseek-coder
-# 理由：代码专用模型，效果最好
-```
-
----
-
-**更新日期**: 2025-11-24
