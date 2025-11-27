@@ -7,9 +7,7 @@ export interface MessageItemProps {
 
 export function MessageItem(props: MessageItemProps) {
   const { message } = props;
-
   const isUserMessage = message.type === 'user';
-
   return (
     <div className={cn('flex', isUserMessage && 'justify-end')}>
       <p

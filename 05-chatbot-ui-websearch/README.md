@@ -11,12 +11,17 @@
 
 # 配置 API Key
 
-此项目使用通义千问模型服务接口，请先阅读 [README.md](../README.md#模型服务和-api-key-说明) 获取 API Key。
+默认情况下本项目与 04-chatbot-ui 保持一致，使用 DeepSeek 的 OpenAI 兼容接口。你也可以通过环境变量切换成任何兼容的模型服务商（如通义千问、Kimi、Claude 等），推荐先阅读 [仓库根目录 README](../README.md#模型服务和-api-key-说明) 了解如何申请 API Key。
 
-然后，在此目录下创建 `.env` 文件，并添加你的 API Key：
+在本目录下创建 `.env` 文件，配置如下内容（BASE_URL、MODEL 可按需覆盖）：
 
 ```bash
-API_KEY=sk-xxx
+# 必填
+API_KEY=sk-your-api-key
+
+# 可选，默认为 DeepSeek
+BASE_URL=https://api.deepseek.com/v1
+MODEL=deepseek-chat
 ```
 
 # 运行项目

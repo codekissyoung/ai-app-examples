@@ -1,14 +1,15 @@
+// lucide-react 提供轻量图标，在输入按钮不同状态之间切换
 import { ArrowRightIcon, Loader2Icon, SquareIcon } from 'lucide-react';
+// ahooks 提供的 useReactive/useMount/useKeyPress 简化了 React 状态绑定与生命周期
 import { useKeyPress, useMount, useReactive } from 'ahooks';
 import { useRef } from 'react';
-
 import { cn } from './lib/utils';
-// @ts-expect-error allow unused here
-import { sse, ssePost } from './lib/sse';
+import { ssePost } from './lib/sse';
 import type { ChatMessage } from './types';
 import { MessageItem } from './components/MessageItem';
 
 export default function App() {
+  // 通过 useReactive 声明响应式对象，避免多次 useState（React + Vite 作为 UI 基座）
   const state = useReactive({
     messages: [] as ChatMessage[],
     input: '',
@@ -73,6 +74,7 @@ export default function App() {
       // });
 
       // 创建 SSE 连接（fetch POST 版本）
+      // 使用自定义的 fetch + SSE 客户端与后端流式通道对接
       const stream = await ssePost<ChatMessage>('/api/sse', {
         signal: abortControllerRef.current.signal,
         params: {
@@ -133,6 +135,7 @@ export default function App() {
       </section>
 
       {/* 聊天消息 */}
+      {/* TailwindCSS + shadcn 的样式体系，快速实现响应式布局 */}
       <section
         className={cn(
           'md:w-3xl mx-auto flex w-full flex-col justify-between px-4 pb-6 leading-relaxed',

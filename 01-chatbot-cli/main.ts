@@ -4,12 +4,9 @@ import OpenAI from 'openai';
 import { ChatOpenAI } from '@langchain/openai';
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 
-// API 配置（从环境变量读取，必填项检查）
 const API_KEY = process.env.API_KEY || "not set";
 const BASE_URL = process.env.BASE_URL || "not set";
 const MODEL = process.env.MODEL || "not set";
-
-// 必填参数检查
 if (!API_KEY || !BASE_URL || !MODEL) {
   console.error('缺少必要的环境变量配置：');
   if (!API_KEY) console.error('  - API_KEY: API 密钥');
@@ -19,8 +16,7 @@ if (!API_KEY || !BASE_URL || !MODEL) {
   process.exit(1);
 }
 
-// 返回模式控制：从环境变量读取，默认为普通模式
-// 'stream' = 流式返回（打字机效果），其他值 = 一次性返回
+// 返回模式控制 'stream' = 流式返回（打字机效果），其他值 = 一次性返回
 const RETURN_MODE = process.env.RETURN_MODE || 'normal';
 
 // SDK 选择：从环境变量读取，默认为原生实现
@@ -28,6 +24,7 @@ const RETURN_MODE = process.env.RETURN_MODE || 'normal';
 // 'openai'    = OpenAI SDK（L2: 中间层，生产级封装）
 // 'langchain' = LangChain 框架（L3: 最高层，AI 应用框架）
 const USE_SDK = process.env.USE_SDK || 'native';
+
 // 从文件读取系统提示词
 const systemPrompt = fs.readFileSync('system-prompt.md', 'utf-8');
 
@@ -49,7 +46,6 @@ let openaiClient: OpenAI | null = null;
 const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
   { role: 'system', content: systemPrompt },
 ];
-
 if (USE_SDK === 'openai') {
   openaiClient = new OpenAI({
     apiKey: API_KEY,
@@ -80,19 +76,14 @@ async function main() {
     if (!input.trim()) {
       continue; // 直接输入回车的话，直接跳过
     }
-
-    // 根据 SDK 选择执行不同的逻辑
     switch (USE_SDK) {
       case 'native':
-        // ========== L1: 原生 fetch 实现 ==========
         await handleNativeMode(input);
         break;
       case 'openai':
-        // ========== L2: OpenAI SDK ==========
         await handleOpenAIMode(input);
         break;
       case 'langchain':
-        // ========== L3: LangChain 框架 ==========
         await handleLangChainMode(input);
         break;
       default:

@@ -1,3 +1,4 @@
+// 浏览器侧 SSE 工具：统一封装 EventSource 与 fetch+ReadableStream 解析逻辑
 export type SSEOptions = {
   params: Record<string, string>;
   signal: AbortSignal;

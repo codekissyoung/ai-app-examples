@@ -1,17 +1,9 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { ChatOpenAI } from '@langchain/openai';
-import {
-  AIMessage,
-  BaseMessage,
-  HumanMessage,
-  SystemMessage,
-} from '@langchain/core/messages';
-
-// 和前端共享的类型
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage} from '@langchain/core/messages';
 import type { ChatMessage } from '../src/types';
 
-// 取得调用模型 API 的必要参数（从环境变量读取）
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL || 'https://api.deepseek.com/v1';
 const MODEL = process.env.MODEL || 'deepseek-chat';
@@ -24,7 +16,7 @@ if (!API_KEY || !BASE_URL || !MODEL) {
   process.exit(1);
 }
 
-// 创建 LangChain 模型实例
+// LangChain 将不同模型封装成统一接口，方便后续替换服务商/模型
 const model = new ChatOpenAI({
   model: MODEL,
   configuration: {
@@ -65,14 +57,10 @@ const messages: BaseMessage[] = [
   ),
 ];
 
+// Express 承担 REST + SSE Server，统一对接前端 UI
 const app = express();
 
-// 添加 JSON 请求体解析中间件
 app.use(express.json());
-
-/**
- * 历史消息查询接口
- */
 app.get('/history', (req, res) => {
   // 把 LangChain 的 BaseMessage 转换为前端的 ChatMessage
   const historyMessages: ChatMessage[] = messages
@@ -95,30 +83,19 @@ app.get('/history', (req, res) => {
 
   res.json(historyMessages);
 });
-
-/**
- * SSE 通信接口（EventSource GET 版本）
- */
-app.get('/sse', sseHandler);
-
-/**
- * SSE 通信接口（fetch POST 版本）
- */
-app.post('/sse', sseHandler);
+app.get('/sse', sseHandler); // SSE 通信接口（EventSource GET 版本）
+app.post('/sse', sseHandler); // SSE 通信接口（fetch POST 版本）
 
 async function sseHandler(req: Request, res: Response) {
   let query = '';
-
   if (req.method === 'GET') {
     query = req.query.query as unknown as string;
   }
-
   if (req.method === 'POST') {
     query = req.body.query;
   }
 
   messages.push(new HumanMessage(query));
-
   const abortController = new AbortController();
 
   // 调用模型 API 传入历史所有消息
@@ -126,12 +103,10 @@ async function sseHandler(req: Request, res: Response) {
     signal: abortController.signal,
   });
 
-  // 设置 SSE 响应头
+  // 设置 SSE 响应头，将 LangChain 的流式结果转成浏览器可消费的 SSE
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-
-  // 提前发送响应头
   res.flushHeaders();
 
   // 如果客户端断开连接，则取消模型请求。
@@ -167,7 +142,7 @@ async function sseHandler(req: Request, res: Response) {
   // 保存本次模型回复，即便中途断开导致不完整。
   messages.push(new AIMessage(reply));
 
-  // 最后发送一个 close 事件，触发前端 EventSource 的自定义 close 事件，
+  // 最后发送一个 close 事件，触发前端 EventSource 的自定义 close 事件
   // 该事件必须通过 EventSource.addEventListener('close') 添加。
   // 这里必须带一个 data: 否则前端的自定义 close 事件不会触发，原因是：
   // 前端的自定义事件会在 message 事件触发后再触发。

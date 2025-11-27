@@ -32,13 +32,6 @@ MODEL=deepseek-chat
 | **Function Calling** | ✅ | ❌ |
 | **JSON Output** | ✅ | ✅ |
 
-**价格**（百万 tokens）：
-```
-输入 (缓存命中):    0.2 元
-输入 (缓存未命中):  2 元
-输出:              3 元
-```
-
 **特点**：
 - ✅ **128K 超长上下文**（与 Kimi 持平）
 - ✅ 性价比极高
@@ -49,9 +42,7 @@ MODEL=deepseek-chat
 **模型选择**：
 - `deepseek-chat` - 通用对话、代码生成（**推荐**）
 - `deepseek-reasoner` - 思考模式（复杂推理、数学）
-
 **注意**：deepseek-reasoner 如果请求含 `tools` 参数，会自动使用 deepseek-chat
-
 **获取 API Key**：https://platform.deepseek.com/
 
 ---
@@ -71,9 +62,6 @@ MODEL=qwen-turbo
 
 **模型列表**：
 - `qwen-turbo` - 快速版
-- `qwen-plus` - 增强版
-- `qwen-max` - 最强版
-
 **获取 API Key**：https://bailian.console.aliyun.com/
 
 ---

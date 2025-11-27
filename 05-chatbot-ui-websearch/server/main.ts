@@ -9,15 +9,9 @@ import { AIMessageChunk, HumanMessage } from '@langchain/core/messages';
 
 const app = express();
 
-// 添加 JSON 请求体解析中间件
 app.use(express.json());
-
-/**
- * 历史消息查询接口
- */
 app.get('/history', (req, res) => {
   const messages: ChatMessage[] = [];
-
   // 将 LangChain 消息类型转换为前端展示用的 ChatMessage 类型
   for (const message of context) {
     if (message instanceof HumanMessage) {
@@ -51,17 +45,9 @@ app.get('/history', (req, res) => {
 
   res.json(messages);
 });
-
-/**
- * 全量上下文查询接口（方便调试）
- */
 app.get('/context', (req, res) => {
   res.json(context);
 });
-
-/**
- * SSE 通信接口（EventSource GET 版本）
- */
 app.get('/sse', sseHandler);
 
 /**
